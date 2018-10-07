@@ -5,28 +5,86 @@ import Row from 'react-bootstrap/lib/Row';
 import Col from 'react-bootstrap/lib/Col';
 
 import { LineChart,Line,XAxis,CartesianGrid,Tooltip,Legend,YAxis} from 'recharts';
+import $ from 'jquery';
 
 
-const data = [
-      {name: 'Page A', uv: 4000, pv: 2400, amt: 2400},
-      {name: 'Page B', uv: 3000, pv: 1398, amt: 2210},
-      {name: 'Page C', uv: 2000, pv: 9800, amt: 2290},
-      {name: 'Page D', uv: 2780, pv: 3908, amt: 2000},
-      {name: 'Page E', uv: 1890, pv: 4800, amt: 2181},
-      {name: 'Page F', uv: 2390, pv: 3800, amt: 2500},
-      {name: 'Page G', uv: 3490, pv: 4300, amt: 2100},
-];
-// 指标面板
-class  IndicatorPanel extends Component{
+$.ajaxSetup({
+  async: false,
+
+});
+
+
+class CustomDot extends Component{
+  render(){
+      return(
+          <div>
+          </div>
+
+        );
+  }
+}
+
+class AlertAudio extends Component{
+
     constructor(props) {
         super(props);
-        this.state = {response: this.requestIndicatorData()};
+        this.requestMonitorAlert()
     }
 
     componentDidMount() {
+
       this.timerID = setInterval(
         () => this.tick(),
-        20000
+        5000
+      );
+    }
+
+    componentWillUnmount() {
+      clearInterval(this.timerID);
+    }
+
+    tick(){
+      this.requestMonitorAlert()
+    }
+
+
+    requestMonitorAlert(){
+        var response = $.post("indicatorCal/monitor/alert")
+
+
+        var responseText = response.responseText
+        var jsonObject = $.parseJSON(responseText)
+         
+        var flag = jsonObject["monitor"]
+
+
+
+        var player = document.getElementById('player');
+        console.log(flag)
+        if(player && flag){
+          player.play()  
+        }
+    }
+
+    render(){
+        return(
+          <audio  id = "player" src="static/money.mp3" >
+          </audio>
+        );
+    }
+}
+
+class  IndicatorPanel extends Component{
+    constructor(props) {
+        super(props);
+        this.state = {response:this.requestIndicatorData()}
+    }
+
+    componentDidMount() {
+
+      this.timerID = setInterval(
+        () => this.tick(),
+        5000
       );
     }
 
@@ -38,68 +96,67 @@ class  IndicatorPanel extends Component{
       this.setState({
         response: this.requestIndicatorData()
       });
+    
     }
 
-
-
-    httpPost(url,param){
-        fetch(url,{
-            method:'post',
-            mode:'cors',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body:param,
-            credentials: "same-origin"
-
-        }).then(function(response){
-            return response.json()
-          // return response
-        },function(error){
-          console.error(error)
-        }).then(function(data){
-          console.log(data)
-        })
-
-    }
 
     requestIndicatorData(){
-        console.log("http post")
-        var startTime = new Date("2018-09-21 00:00:00").getTime()
-        var endTime = new Date("2018-09-22 00:00:00").getTime()
+        var startTime = new Date("2018-09-19 09:00:00").getTime()
+        var endTime = new Date("2018-09-19 23:10:00").getTime()
         var param = {}
         param["start"] = startTime
         param["end"] = endTime
         
-        var queries = [];
-        var oneQueryObj = {};
-        oneQueryObj["aggregator"] = "sum";
-        oneQueryObj["metric"] = "joinQuant.futures.price"
+     
+       // var response = 
+       var response = $.post("/restapi/tsdb/query",JSON.stringify(param))
 
-        var tags = {}
-        tags["security"] = "M1901.XDCE"
-        oneQueryObj["tags"] = tags 
 
-        queries.push(oneQueryObj)
-        param["queries"] = queries
+       var responseText = response.responseText
+       var jsonArray = $.parseJSON(responseText)
+       var length = jsonArray.length
 
-        var response = this.httpPost("/restapi/tsdb/query",JSON.stringify(param))
+
+      if(length === 0 ){
+          var mockObj = {}
+          mockObj["name"] = 'Nan'
+          mockObj["joinQuant.futures.price"] = 0
+          jsonArray.push(mockObj)
+          return jsonArray
+      }
+       for(var i=0;i<length;i++){
+          var timestamp = jsonArray[i]["name"]
+          var date = new Date(timestamp)
+          var hour = date.getHours()
+          var minute = date.getMinutes()
+          if(hour<10){
+            hour = '0' + hour
+          }
+          if(minute < 10){
+            minute = '0' + minute
+          }
+          jsonArray[i]["name"] = hour+":"+minute
+       }
+
+       return jsonArray
+
     } 
 
-   
-
+  
     render(){
         return(
-              <LineChart width={900} height={500} data={data} margin={{top: 5, right: 30, left: 20, bottom: 5}}>
+           <LineChart width={900} height={500} data={this.state.response} margin={{top: 5, right: 30, left: 20, bottom: 5}}>
                   <XAxis dataKey="name"/>
-                  <YAxis/>
+                  <YAxis domain ={['dataMin - 3', 'dataMax + 3']}/>
                   <CartesianGrid strokeDasharray="3 3"/>
                   <Tooltip/>
                   <Legend />
-                  
-                  <Line type="monotone" dataKey="pv" stroke="#8884d8" activeDot={{r: 8}}/>
-                  <Line type="monotone" dataKey="uv" stroke="#82ca9d" />
-              </LineChart>
+                  <Line type="monotone" dataKey="joinQuant.futures.price" stroke="black" activeDot={{r: 8}} dot = {<CustomDot/>}/>
+                  <Line type="monotone" dataKey="indicator.band.middle" stroke="red" dot = {<CustomDot/>}/>
+                  <Line type="monotone" dataKey="indicator.band.upper" stroke="blue" activeDot={{r: 8}} dot = {<CustomDot/>} />
+                  <Line type="monotone" dataKey="indicator.band.low" stroke="green" dot = {<CustomDot/>}/>
+
+          </LineChart>  
         );
     }
 }
@@ -108,14 +165,13 @@ class  IndicatorPanel extends Component{
 class Graph extends Component{
   render(){
       return(
-          // <div style={{height:'500px',border:'1px solid red',textAlign:'center',lineHeight:'500px'}}>
-          // {this.props.name}
-                     <IndicatorPanel></IndicatorPanel>
+       
+          <IndicatorPanel/>
 
-          // </div>
       );
   }
 }
+
 
 class MainLayOut extends Component{
   render(){
@@ -128,7 +184,9 @@ class MainLayOut extends Component{
                 </Graph>
               </Col>
               <Col lg = {2}>
-                大健康
+                  <AlertAudio>
+
+                  </AlertAudio>
               </Col>
 
           </Row>
