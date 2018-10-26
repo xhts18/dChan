@@ -1,16 +1,21 @@
 
 import React, { Component } from 'react';
 
-import { LineChart,Line,XAxis,CartesianGrid,Tooltip,Legend,YAxis,Label} from 'recharts';
+import { LineChart,Line,XAxis,CartesianGrid,Tooltip,Legend,YAxis} from 'recharts';
 import $ from 'jquery';
 
-const startTime = new Date("2018-09-27 09:00:00").getTime()
-const endTime = new Date("2018-09-27 15:00:00").getTime()
+const startTime = new Date("2018-10-12 09:00:00").getTime()
+const endTime = new Date("2018-10-12 15:00:00").getTime()
 
 
 const intervalMills = 10000
-const graphHeight = 450
+const graphHeight = 400
 const graphWidth = 1000
+
+const macdMetric = "indicator.macd"
+const upperSubLowBand = "indicator.band.upperSubLow"
+const security = "SR9999.XZCE"
+const yAxisZero = []
 
 class CustomDot extends Component{
   render(){
@@ -22,7 +27,7 @@ class CustomDot extends Component{
   }
 }
 
-class  RSI extends Component{
+class  MACD extends Component{
     constructor(props) {
         super(props);
         this.state = {response:this.requestIndicatorData()}
@@ -53,10 +58,12 @@ class  RSI extends Component{
         var param = {}
         param["start"] = startTime
         param["end"] = endTime
-        param["security"] = "M1901.XDCE"  
-        param['metric'] = 'indicator.rsi'
+        param["security"] = security  
+        param['metrics'] = []
+        param['metrics'].push(macdMetric)
+        param['metrics'].push(upperSubLowBand)
      
-       var response = $.post("/restapi/tsdb/queryOneMetric",JSON.stringify(param))
+       var response = $.post("/restapi/tsdb/queryMulMetric",JSON.stringify(param))
 
 
        var responseText = response.responseText
@@ -67,7 +74,7 @@ class  RSI extends Component{
       if(length === 0 ){
           var mockObj = {}
           mockObj["name"] = 'Nan'
-          mockObj["indicator.rsi"] = 0
+          mockObj[macdMetric] = 0
           jsonArray.push(mockObj)
           return jsonArray
       }
@@ -83,6 +90,8 @@ class  RSI extends Component{
             minute = '0' + minute
           }
           jsonArray[i]["name"] = hour+":"+minute
+
+          jsonArray[i]["yAxisZero"] = 0
        }
 
        return jsonArray
@@ -98,18 +107,18 @@ class  RSI extends Component{
                   <XAxis dataKey="name">
 
                   </XAxis>
-                  <YAxis domain ={['dataMin - 3', 'dataMax + 3']} label={{ value: 'RSI', angle: 0, position: 'bottom' ,offset:-20}}>
-                   
+                  <YAxis domain ={['dataMin - 0.5', 'dataMax + 0.5']} label={{ value: 'MACD', angle: 0, position: 'bottom' ,offset:-20}}>
                   </YAxis>
                   <CartesianGrid strokeDasharray="3 3"/>
                   <Tooltip/>
                   <Legend />
-                  <Line type="monotone" dataKey="indicator.rsi" stroke="black" activeDot={{r: 8}} dot = {<CustomDot/>}/>
-
+                 
+                  <Line type="monotone" dataKey="indicator.band.upperSubLow" stroke="red" activeDot={{r: 8}} dot = {<CustomDot/>}/>
+                  
           </LineChart>  
 
         );
     }
 }
 
-export default RSI;
+export default MACD;
